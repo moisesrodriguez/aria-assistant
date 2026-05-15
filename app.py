@@ -289,8 +289,8 @@ def chat(message: str, history: list):
 # ---------------------------------------------------------------------------
 EXAMPLES = [
     ["Hola, ¿quién eres y qué puedes hacer?"],
-    ["¿Cual es la raíz cuadrada de 144?"],
-    ["¿Cuánto es el 15% de 2450?"],
+    ["Raíz cuadrada de 144"],
+    ["15% de 2450"],
     ["sin(pi/4) * cos(pi/3)"],
     ["¿Quien creo Apple?"],
     ["¿Cuánto es 2 elevado a la potencia 10?"],
