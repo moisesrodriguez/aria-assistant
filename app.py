@@ -14,37 +14,33 @@ HF_TOKEN = os.environ.get("HF_TOKEN")
 MODEL_ID = "Qwen/Qwen2.5-7B-Instruct"
 FALLBACK_MODEL_ID = "mistralai/Mistral-7B-Instruct-v0.3"
 MAX_HISTORY_MESSAGES = 20
-MAX_TOKENS = 1024
+MAX_TOKENS = 512
 
 client = InferenceClient(token=HF_TOKEN)
 
 # ---------------------------------------------------------------------------
 # System prompt
 # ---------------------------------------------------------------------------
-SYSTEM_PROMPT = """Eres Aria, una asistente de IA útil, amigable y precisa. Respondes en el mismo idioma que el usuario.
+SYSTEM_PROMPT = """You are Aria, a helpful AI assistant. You speak the same language as the user.
 
-Tienes acceso a las siguientes herramientas. Úsalas cuando el usuario necesite información actual o cálculos matemáticos:
+You have two tools available. Use them when needed:
 
-HERRAMIENTA 1: web_search
-- Para buscar información actualizada, eventos recientes, noticias, o cualquier hecho que pueda haber cambiado.
-- Sintaxis: <tool_call>{"name": "web_search", "arguments": {"query": "texto de búsqueda"}}</tool_call>
+TOOL 1 - web_search: Use for current events, news, recent facts, sports results.
+Format: <tool_call>{"name": "web_search", "arguments": {"query": "search query here"}}</tool_call>
 
-HERRAMIENTA 2: calculator
-- Para calcular expresiones matemáticas: aritmética, trigonometría, logaritmos, potencias.
-- Funciones disponibles: sqrt(), sin(), cos(), tan(), log(), log10(), abs(), ceil(), floor(), exp()
-- Constantes: pi, e
-- Sintaxis: <tool_call>{"name": "calculator", "arguments": {"expression": "expresión matemática"}}</tool_call>
+TOOL 2 - calculator: Use for math calculations, square roots, trigonometry, etc.
+Format: <tool_call>{"name": "calculator", "arguments": {"expression": "math expression here"}}</tool_call>
 
-INSTRUCCIONES DE USO:
-1. Si necesitas una herramienta, responde ÚNICAMENTE con el tag <tool_call> en tu respuesta. No añadas texto antes ni después.
-2. Solo usa UNA herramienta por respuesta.
-3. Cuando recibas el resultado de la herramienta, responde normalmente sin usar otro tool_call.
-4. Si no necesitas ninguna herramienta, responde directamente sin usar ningún tag.
+Rules:
+- If you need a tool, output ONLY the <tool_call> tag. Nothing else.
+- If you don't need a tool, respond directly and naturally.
+- Never use tool_call for questions you can answer from memory.
 
-Ejemplos correctos:
-- Usuario pregunta por noticias recientes → <tool_call>{"name": "web_search", "arguments": {"query": "noticias recientes"}}</tool_call>
-- Usuario pide calcular algo → <tool_call>{"name": "calculator", "arguments": {"expression": "sqrt(144)"}}</tool_call>
-- Usuario saluda → Responder directamente sin herramienta
+Examples of when to use tools:
+- "Who won yesterday's match?" → use web_search
+- "What is sqrt(64)?" → use calculator
+- "What is 5+3?" → answer directly: "8"
+- "Hello, who are you?" → answer directly
 """
 
 # ---------------------------------------------------------------------------
@@ -57,23 +53,12 @@ ALLOWED_NODES = (
 )
 
 SAFE_NAMES = {
-    "sqrt": math.sqrt,
-    "abs": abs,
-    "round": round,
-    "sin": math.sin,
-    "cos": math.cos,
-    "tan": math.tan,
-    "asin": math.asin,
-    "acos": math.acos,
-    "atan": math.atan,
-    "log": math.log,
-    "log10": math.log10,
-    "log2": math.log2,
-    "exp": math.exp,
-    "ceil": math.ceil,
-    "floor": math.floor,
-    "pi": math.pi,
-    "e": math.e,
+    "sqrt": math.sqrt, "abs": abs, "round": round,
+    "sin": math.sin, "cos": math.cos, "tan": math.tan,
+    "asin": math.asin, "acos": math.acos, "atan": math.atan,
+    "log": math.log, "log10": math.log10, "log2": math.log2,
+    "exp": math.exp, "ceil": math.ceil, "floor": math.floor,
+    "pi": math.pi, "e": math.e,
 }
 
 
@@ -83,7 +68,7 @@ def safe_eval_math(expression: str) -> str:
         tree = ast.parse(expression, mode="eval")
         for node in ast.walk(tree):
             if not isinstance(node, ALLOWED_NODES):
-                return "Error: operación no permitida en la expresión."
+                return "Error: operación no permitida."
         code = compile(tree, "<string>", "eval")
         result = eval(code, {"__builtins__": {}}, SAFE_NAMES)  # noqa: S307
         if isinstance(result, float):
@@ -94,7 +79,7 @@ def safe_eval_math(expression: str) -> str:
     except ZeroDivisionError:
         return "Error: División por cero."
     except Exception as exc:
-        return f"Error: No se pudo evaluar '{expression}' — {exc}"
+        return f"Error: {exc}"
 
 
 # ---------------------------------------------------------------------------
@@ -105,16 +90,16 @@ def web_search(query: str, max_results: int = 3) -> str:
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=max_results))
         if not results:
-            return "No se encontraron resultados para esa búsqueda."
+            return "No se encontraron resultados."
         lines = []
         for i, r in enumerate(results, 1):
             title = r.get("title", "Sin título")
-            body = r.get("body", "")[:250]
+            body = r.get("body", "")[:300]
             href = r.get("href", "")
-            lines.append(f"{i}. **{title}**\n   {body}\n   Fuente: {href}")
-        return "\n\n".join(lines)
+            lines.append(f"**{i}. {title}**\n{body}\n[Fuente]({href})")
+        return "\n\n---\n\n".join(lines)
     except Exception as exc:
-        return f"Error en la búsqueda: {exc}. Intenta reformular tu pregunta."
+        return f"Error en búsqueda: {exc}"
 
 
 # ---------------------------------------------------------------------------
@@ -122,81 +107,73 @@ def web_search(query: str, max_results: int = 3) -> str:
 # ---------------------------------------------------------------------------
 def execute_tool(name: str, arguments: dict) -> str:
     if name == "web_search":
-        query = arguments.get("query", "").strip()
-        return web_search(query) if query else "Error: consulta vacía."
+        return web_search(arguments.get("query", "").strip())
     if name == "calculator":
-        expression = arguments.get("expression", "").strip()
-        return safe_eval_math(expression) if expression else "Error: expresión vacía."
-    return f"Error: herramienta desconocida '{name}'."
+        return safe_eval_math(arguments.get("expression", "").strip())
+    return f"Error: herramienta '{name}' desconocida."
 
 
 # ---------------------------------------------------------------------------
-# Tool call parser — handles both our <tool_call> markers and native tool_calls
+# Parsers
 # ---------------------------------------------------------------------------
 _TOOL_PATTERN = re.compile(r"<tool_call>(.*?)</tool_call>", re.DOTALL)
 
 
 def parse_tool_call(text: str) -> tuple:
-    """Returns (tool_call_dict, text_before_marker) or (None, full_text)."""
     match = _TOOL_PATTERN.search(text)
     if not match:
         return None, text
     try:
-        tool_call = json.loads(match.group(1).strip())
-        if "name" not in tool_call or "arguments" not in tool_call:
-            return None, text
-        return tool_call, text[: match.start()].strip()
+        tc = json.loads(match.group(1).strip())
+        if "name" in tc and "arguments" in tc:
+            return tc, text[: match.start()].strip()
     except json.JSONDecodeError:
-        return None, text
+        pass
+    return None, text
 
 
 def extract_native_tool_call(response) -> dict | None:
-    """Extract tool call from native tool_calls field (model ignores our markers)."""
     try:
-        tool_calls = response.choices[0].message.tool_calls
-        if tool_calls:
-            tc = tool_calls[0]
-            return {
-                "name": tc.function.name,
-                "arguments": json.loads(tc.function.arguments),
-            }
+        tcs = response.choices[0].message.tool_calls
+        if tcs:
+            tc = tcs[0]
+            return {"name": tc.function.name, "arguments": json.loads(tc.function.arguments)}
     except Exception:
         pass
     return None
 
 
-# ---------------------------------------------------------------------------
-# Content extractor — handles both plain strings and Gradio content blocks
-# ---------------------------------------------------------------------------
 def extract_text(content) -> str:
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        parts = [b.get("text", "") if isinstance(b, dict) else str(b) for b in content]
-        return " ".join(filter(None, parts))
+        return " ".join(
+            b.get("text", "") if isinstance(b, dict) else str(b)
+            for b in content
+        )
     return str(content) if content else ""
 
 
 # ---------------------------------------------------------------------------
-# Message builder
+# Build messages
 # ---------------------------------------------------------------------------
 def build_messages(history: list, user_message: str) -> list:
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-    recent = history[-MAX_HISTORY_MESSAGES:]
-    for msg in recent:
+    msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
+    for msg in history[-MAX_HISTORY_MESSAGES:]:
         text = extract_text(msg.get("content", ""))
         if text:
-            messages.append({"role": msg["role"], "content": text})
-    messages.append({"role": "user", "content": user_message})
-    return messages
+            msgs.append({"role": msg["role"], "content": text})
+    msgs.append({"role": "user", "content": user_message})
+    return msgs
 
 
-def call_model(messages: list, stream: bool = False, model: str = MODEL_ID):
+def call_model(messages: list, stream: bool = False, model: str = MODEL_ID,
+               max_tokens: int = MAX_TOKENS):
     return client.chat_completion(
         model=model,
         messages=messages,
-        max_tokens=MAX_TOKENS,
-        temperature=0.7,
+        max_tokens=max_tokens,
+        temperature=0.6,
         stream=stream,
     )
 
@@ -207,74 +184,71 @@ def call_model(messages: list, stream: bool = False, model: str = MODEL_ID):
 def chat(message: str, history: list):
     messages = build_messages(history, message)
 
-    # --- First pass: detect tool call ---
+    # Step 1 — call model to get response or tool decision
     try:
-        response = call_model(messages, stream=False)
+        response = call_model(messages, stream=False, max_tokens=300)
         msg_obj = response.choices[0].message
         assistant_text = (msg_obj.content or "").strip()
 
-        # Some models return tool calls in the native field instead of text
         if not assistant_text:
             native = extract_native_tool_call(response)
             if native:
                 assistant_text = f'<tool_call>{json.dumps(native)}</tool_call>'
             else:
-                yield "⚠️ El modelo no generó respuesta. Por favor intenta de nuevo."
-                return
+                # Empty first response — try fallback model
+                try:
+                    fb = call_model(messages, stream=False, model=FALLBACK_MODEL_ID, max_tokens=300)
+                    assistant_text = (fb.choices[0].message.content or "").strip()
+                except Exception:
+                    pass
+                if not assistant_text:
+                    yield "⚠️ El modelo no generó respuesta. Por favor intenta de nuevo."
+                    return
 
     except Exception as exc:
         err = str(exc)
         if "429" in err or "rate" in err.lower():
-            yield "⏳ Demasiadas solicitudes. Espera un momento e intenta de nuevo."
-        elif "401" in err or "token" in err.lower():
-            yield "🔑 Error de autenticación. Verifica que HF_TOKEN esté configurado."
+            yield "⏳ Demasiadas solicitudes. Espera unos segundos e intenta de nuevo."
         else:
-            yield f"❌ Error al conectar con el modelo: {err[:150]}"
+            yield f"❌ Error al contactar el modelo: {err[:200]}"
         return
 
+    # Step 2 — check for tool call
     tool_call, text_before = parse_tool_call(assistant_text)
 
-    # --- No tool needed ---
     if not tool_call:
-        yield assistant_text
+        # No tool needed: stream a full quality response
+        try:
+            streamed = ""
+            for chunk in call_model(messages, stream=True, max_tokens=MAX_TOKENS):
+                delta = chunk.choices[0].delta.content or ""
+                streamed += delta
+                yield streamed
+            if not streamed.strip():
+                yield assistant_text or "No pude generar una respuesta."
+        except Exception:
+            yield assistant_text or "No pude generar una respuesta."
         return
 
-    # --- Tool call detected ---
+    # Step 3 — execute tool and format result directly (no second model call)
     tool_name = tool_call["name"]
-    tool_indicator = f"🔧 *Consultando {tool_name}...*"
-    if text_before:
-        tool_indicator = text_before + "\n\n" + tool_indicator
-    yield tool_indicator
+    tool_args = tool_call["arguments"]
 
-    tool_result = execute_tool(tool_name, tool_call["arguments"])
+    yield f"🔧 *Consultando {tool_name}...*"
 
-    follow_up_messages = messages + [
-        {"role": "assistant", "content": assistant_text},
-        {
-            "role": "user",
-            "content": (
-                f"[Resultado de {tool_name}]:\n{tool_result}\n\n"
-                "Ahora responde al usuario de forma natural usando esta información. "
-                "No uses ningún tool_call."
-            ),
-        },
-    ]
+    tool_result = execute_tool(tool_name, tool_args)
 
-    # --- Second pass: stream the final answer ---
-    try:
-        streamed = ""
-        prefix = tool_indicator + "\n\n"
-        for chunk in call_model(follow_up_messages, stream=True):
-            delta = chunk.choices[0].delta.content or ""
-            streamed += delta
-            yield prefix + streamed
+    if tool_name == "calculator":
+        expr = tool_args.get("expression", "")
+        display_expr = expr.replace("**", "^")
+        yield f"🧮 **Calculadora**\n\n`{display_expr}` = **{tool_result}**"
 
-        if not streamed.strip():
-            yield prefix + "Encontré información pero no pude formular una respuesta. Intenta de nuevo."
+    elif tool_name == "web_search":
+        query = tool_args.get("query", "")
+        yield f"🔍 **Búsqueda:** *{query}*\n\n{tool_result}"
 
-    except Exception as exc:
-        err = str(exc)
-        yield tool_indicator + f"\n\n❌ Error al generar la respuesta final: {err[:120]}"
+    else:
+        yield f"**Resultado ({tool_name}):**\n\n{tool_result}"
 
 
 # ---------------------------------------------------------------------------
@@ -283,12 +257,12 @@ def chat(message: str, history: list):
 EXAMPLES = [
     ["Hola, ¿quién eres y qué puedes hacer?"],
     ["¿Cuáles son las últimas noticias sobre inteligencia artificial?"],
-    ["Calcula la raíz cuadrada de 144 más 37 multiplicado por 2"],
+    ["Calcula la raíz cuadrada de 144"],
     ["¿Cuánto es el 15% de 2450?"],
-    ["Busca información sobre el cambio climático en 2025"],
-    ["Calcula sin(pi/4) * cos(pi/3)"],
-    ["¿Cuánto es 2 elevado a la potencia 10?"],
     ["¿Quién ganó la última Champions League?"],
+    ["Calcula sin(pi/4) * cos(pi/3)"],
+    ["Busca información sobre el cambio climático"],
+    ["¿Cuánto es 2 elevado a la potencia 10?"],
 ]
 
 CSS = """
