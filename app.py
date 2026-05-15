@@ -1,11 +1,12 @@
-import os
-import json
-import re
 import ast
+import json
 import math
+import os
+import re
+
 import gradio as gr
-from huggingface_hub import InferenceClient
 from duckduckgo_search import DDGS
+from huggingface_hub import InferenceClient
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -47,18 +48,42 @@ Examples of when to use tools:
 # Safe calculator (AST-based, no raw eval)
 # ---------------------------------------------------------------------------
 ALLOWED_NODES = (
-    ast.Expression, ast.BinOp, ast.UnaryOp, ast.Constant,
-    ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod,
-    ast.FloorDiv, ast.USub, ast.UAdd, ast.Call, ast.Name, ast.Load,
+    ast.Expression,
+    ast.BinOp,
+    ast.UnaryOp,
+    ast.Constant,
+    ast.Add,
+    ast.Sub,
+    ast.Mult,
+    ast.Div,
+    ast.Pow,
+    ast.Mod,
+    ast.FloorDiv,
+    ast.USub,
+    ast.UAdd,
+    ast.Call,
+    ast.Name,
+    ast.Load,
 )
 
 SAFE_NAMES = {
-    "sqrt": math.sqrt, "abs": abs, "round": round,
-    "sin": math.sin, "cos": math.cos, "tan": math.tan,
-    "asin": math.asin, "acos": math.acos, "atan": math.atan,
-    "log": math.log, "log10": math.log10, "log2": math.log2,
-    "exp": math.exp, "ceil": math.ceil, "floor": math.floor,
-    "pi": math.pi, "e": math.e,
+    "sqrt": math.sqrt,
+    "abs": abs,
+    "round": round,
+    "sin": math.sin,
+    "cos": math.cos,
+    "tan": math.tan,
+    "asin": math.asin,
+    "acos": math.acos,
+    "atan": math.atan,
+    "log": math.log,
+    "log10": math.log10,
+    "log2": math.log2,
+    "exp": math.exp,
+    "ceil": math.ceil,
+    "floor": math.floor,
+    "pi": math.pi,
+    "e": math.e,
 }
 
 
@@ -137,7 +162,10 @@ def extract_native_tool_call(response) -> dict | None:
         tcs = response.choices[0].message.tool_calls
         if tcs:
             tc = tcs[0]
-            return {"name": tc.function.name, "arguments": json.loads(tc.function.arguments)}
+            return {
+                "name": tc.function.name,
+                "arguments": json.loads(tc.function.arguments),
+            }
     except Exception:
         pass
     return None
@@ -148,8 +176,7 @@ def extract_text(content) -> str:
         return content
     if isinstance(content, list):
         return " ".join(
-            b.get("text", "") if isinstance(b, dict) else str(b)
-            for b in content
+            b.get("text", "") if isinstance(b, dict) else str(b) for b in content
         )
     return str(content) if content else ""
 
@@ -167,8 +194,12 @@ def build_messages(history: list, user_message: str) -> list:
     return msgs
 
 
-def call_model(messages: list, stream: bool = False, model: str = MODEL_ID,
-               max_tokens: int = MAX_TOKENS):
+def call_model(
+    messages: list,
+    stream: bool = False,
+    model: str = MODEL_ID,
+    max_tokens: int = MAX_TOKENS,
+):
     return client.chat_completion(
         model=model,
         messages=messages,
@@ -193,11 +224,13 @@ def chat(message: str, history: list):
         if not assistant_text:
             native = extract_native_tool_call(response)
             if native:
-                assistant_text = f'<tool_call>{json.dumps(native)}</tool_call>'
+                assistant_text = f"<tool_call>{json.dumps(native)}</tool_call>"
             else:
                 # Empty first response — try fallback model
                 try:
-                    fb = call_model(messages, stream=False, model=FALLBACK_MODEL_ID, max_tokens=300)
+                    fb = call_model(
+                        messages, stream=False, model=FALLBACK_MODEL_ID, max_tokens=300
+                    )
                     assistant_text = (fb.choices[0].message.content or "").strip()
                 except Exception:
                     pass
@@ -256,12 +289,10 @@ def chat(message: str, history: list):
 # ---------------------------------------------------------------------------
 EXAMPLES = [
     ["Hola, ¿quién eres y qué puedes hacer?"],
-    ["¿Cuáles son las últimas noticias sobre inteligencia artificial?"],
-    ["Calcula la raíz cuadrada de 144"],
+    ["¿Cual es la raíz cuadrada de 144?"],
     ["¿Cuánto es el 15% de 2450?"],
-    ["¿Quién ganó la última Champions League?"],
-    ["Calcula sin(pi/4) * cos(pi/3)"],
-    ["Busca información sobre el cambio climático"],
+    ["sin(pi/4) * cos(pi/3)"],
+    ["¿Quien creo Apple?"],
     ["¿Cuánto es 2 elevado a la potencia 10?"],
 ]
 
