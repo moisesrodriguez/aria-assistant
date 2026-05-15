@@ -1,3 +1,15 @@
+---
+title: Aria Assistant
+emoji: 🤖
+colorFrom: blue
+colorTo: indigo
+sdk: gradio
+sdk_version: "5.0.0"
+app_file: app.py
+pinned: false
+short_description: Agente conversacional con búsqueda web y calculadora
+---
+
 # 🤖 Aria — Agente Conversacional con IA
 
 Aplicación de agente conversacional avanzado construida con Gradio y modelos de HuggingFace. Aria tiene memoria de conversación, puede buscar información en la web y realizar cálculos matemáticos complejos.
