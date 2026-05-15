@@ -264,9 +264,6 @@ demo = gr.ChatInterface(
     examples=EXAMPLES,
     theme=gr.themes.Soft(primary_hue="blue", secondary_hue="slate"),
     css=CSS,
-    retry_btn="🔄 Reintentar",
-    undo_btn="↩️ Deshacer",
-    clear_btn="🗑️ Limpiar",
 )
 
 if __name__ == "__main__":
