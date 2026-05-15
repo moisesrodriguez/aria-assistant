@@ -2,7 +2,7 @@
 
 Aplicación de agente conversacional avanzado construida con Gradio y modelos de HuggingFace. Aria tiene memoria de conversación, puede buscar información en la web y realizar cálculos matemáticos complejos.
 
-**[🚀 Ver app desplegada en HuggingFace Spaces](https://huggingface.co/spaces/moisesalejandro/aria-assistant)**
+**[🚀 Ver app desplegada en HuggingFace Spaces](https://moisesalejandro-aria-assistant.hf.space)**
 
 ## Características
 
@@ -87,6 +87,10 @@ La app estará disponible en `http://localhost:7860`
 1. Crea una cuenta en [huggingface.co](https://huggingface.co)
 2. Ve a Settings → Access Tokens
 3. Crea un nuevo token con permisos de lectura
+
+## App desplegada
+
+La app está disponible en: **https://moisesalejandro-aria-assistant.hf.space**
 
 ## Despliegue en HuggingFace Spaces
 
